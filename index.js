@@ -12,6 +12,6 @@ app.use(cors())
 app.use("/", userRoutes)
 
 
-app.listen(PORT, () => {
+app.listen(process.PORT.env, () => {
     console.log("Server is listening~!")
 })
