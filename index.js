@@ -1,22 +1,17 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const dotenv = require('dotenv');
-const connectDB = require('./config/db');
-const authRoutes = require('./routes/authRoutes');
+const express = require("express")
+const connectDB = require("./config/db.js")
+const userRoutes = require("./routes/user.routes.js")
+const cors = require("cors")
 
-dotenv.config();
-const app = express();
+connectDB()
+const app = express()
+const PORT = 5000 || process.env.PORT
+app.use(express.json())
+app.use(cors())
 
-// Middleware
-app.use(bodyParser.json());
+app.use("/", userRoutes)
 
-// Use routes WITHOUT prefix
-app.use('/', authRoutes);
 
-// Connect DB and Start Server
-connectDB();
-
-const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+    console.log("Server is listening~!")
+})
