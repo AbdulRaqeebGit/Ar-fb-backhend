@@ -1,10 +1,28 @@
 const User = require("../models/user.model.js");
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const Joi = require("joi");
+
 // Create a new user
 const createUser = async (req, res) => {
+    const schema = Joi.object({
+        username: Joi.string().min(3).required(),
+        email: Joi.string().email().required(),
+        password: Joi.string().min(6).required(),
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+        return res.status(400).json({ message: error.details[0].message });
+    }
+
     try {
         const user = await User.create(req.body);
-        res.status(201).json(user);
+        res.status(201).json({
+            id: user._id,
+            username: user.username,
+            email: user.email,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -13,7 +31,7 @@ const createUser = async (req, res) => {
 // Get all users
 const getAllUsers = async (req, res) => {
     try {
-        const users = await User.find();
+        const users = await User.find().select("-password");
         res.status(200).json(users);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -23,7 +41,7 @@ const getAllUsers = async (req, res) => {
 // Get user by ID
 const getUserById = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
+        const user = await User.findById(req.params.id).select("-password");
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
@@ -35,11 +53,22 @@ const getUserById = async (req, res) => {
 
 // Update user
 const updateUser = async (req, res) => {
+    const schema = Joi.object({
+        username: Joi.string().min(3).optional(),
+        email: Joi.string().email().optional(),
+        password: Joi.string().min(6).optional(),
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+        return res.status(400).json({ message: error.details[0].message });
+    }
+
     try {
         const user = await User.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true,
-        });
+        }).select("-password");
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
@@ -62,7 +91,18 @@ const deleteUser = async (req, res) => {
     }
 };
 
+// Login user
 const loginUser = async (req, res) => {
+    const schema = Joi.object({
+        email: Joi.string().email().required(),
+        password: Joi.string().required(),
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+        return res.status(400).json({ message: error.details[0].message });
+    }
+
     const { email, password } = req.body;
 
     try {
@@ -71,36 +111,40 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        // Generate JWT token
-        const token = jwt.sign({ id: user._id }, "hello", { expiresIn: "1d" });
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: "Invalid email or password" });
+        }
+
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
 
         res.status(200).json({
             message: "Login successful",
             token,
             user: {
                 id: user._id,
-                name: user.name,
+                username: user.username,
                 email: user.email,
-            }
+            },
         });
-
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
+
+// Get user data (protected route)
 const getUserData = async (req, res) => {
     try {
-        console.log(req.body);
-        const { token } = req.body
-
-        const data = await jwt.verify(token, "hello")
-        console.log(data);
-        const user = await User.findById(data.id)
-        res.json(user)
+        const user = await User.findById(req.user.id).select("-password");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json(user);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
-}
+};
+
 module.exports = {
     createUser,
     getAllUsers,
@@ -108,5 +152,5 @@ module.exports = {
     updateUser,
     deleteUser,
     loginUser,
-    getUserData
+    getUserData,
 };

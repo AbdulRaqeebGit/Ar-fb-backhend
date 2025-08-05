@@ -1,14 +1,29 @@
-const express = require('express');
-const router = express.Router();
-const userController = require('../controllers/user.controller');
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
 
-// Routes
-router.post('/user', userController.getUserData);
-router.post('/signup', userController.createUser);
-router.post('/login', userController.loginUser);
-router.get('/getall', userController.getAllUsers);
-router.get('/:id', userController.getUserById);
-router.put('/:id', userController.updateUser);
-router.delete('/:id', userController.deleteUser);
+const userSchema = new mongoose.Schema({
+    username: {
+        type: String,
+        required: true,
+        unique: true, // Ensure username is unique
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+    },
+    password: {
+        type: String,
+        required: true,
+    },
+}, { timestamps: true });
 
-module.exports = router;
+// Hash password before saving
+userSchema.pre("save", async function (next) {
+    if (this.isModified("password")) {
+        this.password = await bcrypt.hash(this.password, 10);
+    }
+    next();
+});
+
+module.exports = mongoose.model("User", userSchema);    
